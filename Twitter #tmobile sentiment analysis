@@ -21,7 +21,7 @@ library(ggrepel)
 '
 #   LOAD DATA
 ```{r}
-tweets <- readRDS("tweets.rds")
+# tweets <- readRDS("tweets.rds")
 ```
 
 ```{r}
@@ -31,12 +31,16 @@ tweets <- readRDS("tweets.rds")
 
 #   EXTRACT tmobile hashtags
 ```{r}
-tmobile <- tweets[grep("tmobile", tweets$hashtags, fixed = FALSE, ignore.case = TRUE),]
+#tmobile <- tweets[grep("tmobile", tweets$hashtags, fixed = FALSE, ignore.case = TRUE),]
 
-tmobile_msg <- tweets[grep("tmobile", tweets$msg, fixed = FALSE, ignore.case = TRUE),]
+#tmobile_msg <- tweets[grep("tmobile", tweets$msg, fixed = FALSE, ignore.case = TRUE),]
 
 final_data <- rbind(tmobile, tmobile_msg)
 #final_data
+
+# Save an final_data to a file
+# saveRDS(final_data, file = "final_data.rds")
+
 ```
 
 
@@ -132,7 +136,7 @@ bigramz <- tweet %>% unnest_tokens(bigram,msg,token="ngrams",n=2)
 ```{r}
 #Count and Separate
 
-bigram_cnt <- bigramz %>% count(bigram,sort=TRUE) %>% separate(bigram,c("word1","word2"),sep="")
+bigram_cnt <- bigramz %>% count(bigram,sort=TRUE) %>% separate(bigram,c("word1","word2"),sep=" ")
 
 
 bigram_neg1 <-  merge(x=bigram_cnt ,y= sentiments, by.x=c("word1"),  by.y=c("word"))
@@ -158,9 +162,11 @@ bigram_neg3 <- bigram_neg3[,c("word1", "word2", "n")]
 NETWORK DIAGRAM: ONE WORD IN BIGRAM IS NEGATIVE
 ```{r}
 #Network Diagram 2: wop
-plot4 <- bigram_neg %>% filter(n>4) %>% graph_from_data_frame() %>% ggraph(layout="fr") + geom_edge_link(aes(edge_alpha = n, edge_width = n)) + geom_node_point(color="#C2A01E", size=3) + geom_node_text(aes(label=name), vjust=1.8, size=3) + labs(title="network diagram",subtitle="text mining",x="",y="")
+plot4 <- bigram_neg1 %>% filter(n>4) %>% graph_from_data_frame() %>% ggraph(layout="fr") + geom_edge_link(aes(edge_alpha = n, edge_width = n)) + geom_node_point(color="#C2A01E", size=3) + geom_node_text(aes(label=name), vjust=1.8, size=3) + labs(title="network diagram",subtitle="text mining",x="",y="")
 plot4
 
+plot5 <- bigram_neg2 %>% filter(n>4) %>% graph_from_data_frame() %>% ggraph(layout="fr") + geom_edge_link(aes(edge_alpha = n, edge_width = n)) + geom_node_point(color="#C2A01E", size=3) + geom_node_text(aes(label=name), vjust=1.8, size=3) + labs(title="network diagram",subtitle="text mining",x="",y="")
+plot5
 
 
 png("plot4.png")
