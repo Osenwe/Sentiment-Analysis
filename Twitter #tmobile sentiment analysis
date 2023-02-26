@@ -1,0 +1,186 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# ANDREW BENYEOGOR OSENWE
+
+#   LOAD LIBRARIES
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidytext)
+library(wordcloud)
+library(tidyr)
+library(ggraph)
+library(igraph)
+library(reshape2)
+library(ggrepel)
+```
+
+'
+#   LOAD DATA
+```{r}
+tweets <- readRDS("tweets.rds")
+```
+
+```{r}
+#tweets %>% head(10)
+```
+
+
+#   EXTRACT tmobile hashtags
+```{r}
+tmobile <- tweets[grep("tmobile", tweets$hashtags, fixed = FALSE, ignore.case = TRUE),]
+
+tmobile_msg <- tweets[grep("tmobile", tweets$msg, fixed = FALSE, ignore.case = TRUE),]
+
+final_data <- rbind(tmobile, tmobile_msg)
+#final_data
+```
+
+
+
+
+#   Ratio of retweets to tweets
+```{r}
+retweets_cnt <- final_data[grep("^RT", final_data$msg, fixed = FALSE, ignore.case = TRUE),] %>% nrow()
+
+total_twt <- final_data %>% nrow()
+
+ratio <- retweets_cnt / total_twt
+ratio
+```
+PREP DATASET FOR ANALYSIS
+```{r}
+# Mutate and separate words in msg column
+tweet_row <- final_data %>% mutate(sent_no = row_number())
+tweet_word <- tweet_row %>% unnest_tokens(word, msg)
+
+# filter out non english words
+tweet_word <- tweet_word %>% filter(lang == "en")
+
+# remove stop words and examine to create custom stop words
+tweet_word <- tweet_word %>% anti_join(stop_words)
+custStopList <- tibble(word=c("tco", "https", "400k", "rt", "poc", "5g", "uc", "droppatriotmobile", "tchainzdc", "5", "im", "it's", "lgbtq", "25kthat", "jonfreier", "gofundme", "40k", "unluckybutter3", "it's", "i've", "tmobile", "001f602", "001f60d", "001f62d", "25kthat"))
+tweet_word <- tweet_word %>% anti_join(custStopList)
+
+
+#tweetSenti <- tweet_word %>% count(word, sort = TRUE) %>% top_n(50) %>% mutate(word = reorder(word, n))
+#tweetSenti
+```
+
+
+
+#   PLOT top 15 meaningful positive, and negative words
+```{r}
+plot1 <- tweet_word %>% inner_join(get_sentiments("bing")) %>% count(word, sentiment, sort = TRUE) %>% ungroup() %>% group_by(sentiment) %>% top_n(15) %>% ungroup() %>% mutate(word=reorder(word, n)) %>% ggplot(aes(word, n, fill = sentiment)) + geom_col(show.legend = FALSE) + scale_fill_manual(values= c("#C2A01E", "#520F24")) + facet_wrap(~sentiment, scales="free_y") + ylim(0, 1500) + coord_flip() 
+
+# The word break occurs frequently, lets remove it from tweets data
+custBreak <- tibble(word=c("break"))
+tweet_break <- tweet_word %>% anti_join(custBreak)
+
+
+plot2 <- tweet_break %>% inner_join(get_sentiments("bing")) %>% count(word, sentiment, sort = TRUE) %>% ungroup() %>% group_by(sentiment) %>% top_n(15) %>% ungroup() %>% mutate(word=reorder(word, n)) %>% ggplot(aes(word, n, fill = sentiment)) + geom_col(show.legend = FALSE) + scale_fill_manual(values= c("#C2A01E", "#520F24")) + facet_wrap(~sentiment, scales="free_y") + ylim(0, 500) + coord_flip() 
+
+plot1
+plot2
+
+png("plot1.png")
+print(plot1)
+dev.off()
+
+png("plot2.png")
+print(plot2)
+dev.off()
+```
+
+#   word cloud of most frequent positive and negative words
+```{r}
+plot3 <- tweet_word %>% inner_join(get_sentiments("bing")) %>% count(word,sentiment, sort=TRUE) %>% acast(word~sentiment,value.var="n",fill=0) %>% comparison.cloud(colors=c("#C2A01E", "#520F24"),scale=c(4,1),random.order=FALSE,max.words=30) 
+plot3
+
+png("plot3.png")
+print(plot3)
+dev.off()
+```
+
+#   who are the top 10 users based on count of tweets
+```{r}
+user_tweet <- final_data %>% group_by(final_data$username) %>% summarise(Count = n())
+
+user_tweet <- user_tweet[order(user_tweet$Count, decreasing = TRUE),]
+
+user_tweet %>% head(10)
+```
+
+#   how many of the tweets are retweets
+```{r}
+retweets_cnt <- final_data[grep("^RT", final_data$msg, fixed = FALSE, ignore.case = TRUE),] %>% nrow()
+retweets_cnt
+```
+
+#   create a network diagram based on bigrams of negative words
+```{r}
+#Network Digrams 1
+tweet <- final_data %>% filter(lang == "en")
+
+bigramz <- tweet %>% unnest_tokens(bigram,msg,token="ngrams",n=2) 
+
+```
+
+```{r}
+#Count and Separate
+
+bigram_cnt <- bigramz %>% count(bigram,sort=TRUE) %>% separate(bigram,c("word1","word2"),sep="")
+
+
+bigram_neg1 <-  merge(x=bigram_cnt ,y= sentiments, by.x=c("word1"),  by.y=c("word"))
+neg <- bigram_neg1
+bigram_neg1 <- subset(bigram_neg1, sentiment == "negative")
+bigram_neg1 <- bigram_neg1[,c("word1", "word2", "n")]
+#bigram_neg1
+
+bigram_neg2 <- merge(x=bigram_cnt ,y= sentiments, by.x=c("word2"),  by.y=c("word"))
+bigram_neg2 <- subset(bigram_neg2, sentiment == "negative")
+bigram_neg1 <- bigram_neg1[,c("word1", "word2", "n")]
+#bigram_neg2
+
+sentim <- sentiments
+
+
+bigram_neg3 <-  merge(x=neg,y= sentim, by.x=c("word2"),  by.y=c("word"))
+bigram_neg3 <- subset(bigram_neg3, sentiment.x == "negative" & sentiment.y == "negative")
+bigram_neg3 <- bigram_neg3[,c("word1", "word2", "n")]
+#bigram_neg3
+```
+
+NETWORK DIAGRAM: ONE WORD IN BIGRAM IS NEGATIVE
+```{r}
+#Network Diagram 2: wop
+plot4 <- bigram_neg %>% filter(n>4) %>% graph_from_data_frame() %>% ggraph(layout="fr") + geom_edge_link(aes(edge_alpha = n, edge_width = n)) + geom_node_point(color="#C2A01E", size=3) + geom_node_text(aes(label=name), vjust=1.8, size=3) + labs(title="network diagram",subtitle="text mining",x="",y="")
+plot4
+
+
+
+png("plot4.png")
+print(plot4)
+dev.off()
+
+png("plot5.png")
+print(plot5)
+dev.off()
+```
+
+NETWORK DIAGRAM: BOTH WORDS IN BIGRAM IS NEGATIVE
+```{r}
+
+plot6 <- bigram_neg3 %>% filter(n>0.4) %>% graph_from_data_frame() %>% ggraph(layout="fr") + geom_edge_link(aes(edge_alpha = n, edge_width = n)) + geom_node_point(color="#C2A01E", size=3) + geom_node_text(aes(label=name), vjust=1.8, size=3) + labs(title="network diagram",subtitle="text mining",x="",y="")
+plot6
+
+png("plot6.png")
+print(plot6)
+dev.off()
+```
+
+
